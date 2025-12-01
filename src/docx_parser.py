@@ -4,6 +4,7 @@ Converts document structure to a simple JSON format.
 """
 
 import json
+import uuid
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 from docx import Document
@@ -14,15 +15,21 @@ from docx.enum.style import WD_STYLE_TYPE
 def parse_docx(docx_path: str) -> List[Dict[str, Any]]:
     """
     Parse a DOCX file and extract structured content.
+    Generates UUIDs for titles and tracks hierarchical structure.
     
     Args:
         docx_path: Path to the DOCX file
         
     Returns:
-        List of dictionaries with keys: text, type, title_level, metadata
+        List of dictionaries with keys: text, type, title_level, title_id, metadata
     """
     doc = Document(docx_path)
     elements = []
+    
+    # Track current hierarchical IDs
+    current_h1_id = None
+    current_h2_id = None
+    current_h3_id = None
     
     for paragraph in doc.paragraphs:
         # Skip empty paragraphs
@@ -64,10 +71,43 @@ def parse_docx(docx_path: str) -> List[Dict[str, Any]]:
                     element_type = "title"
                     title_level = 1  # Default to level 1 if uncertain
         
+        # Generate UUID for titles and update hierarchical structure
+        title_id = None
+        h1_id_for_element = current_h1_id
+        h2_id_for_element = current_h2_id
+        h3_id_for_element = current_h3_id
+        
+        if element_type == "title" and title_level is not None:
+            title_id = str(uuid.uuid4())
+            
+            # Update hierarchical IDs based on title level
+            # The title itself gets its ID in the appropriate hierarchical field
+            if title_level == 1:
+                current_h1_id = title_id
+                current_h2_id = None  # Reset lower levels
+                current_h3_id = None
+                h1_id_for_element = title_id  # H1 has its own ID in h1_id
+                h2_id_for_element = None
+                h3_id_for_element = None
+            elif title_level == 2:
+                current_h2_id = title_id
+                current_h3_id = None  # Reset lower levels
+                # H2 keeps parent H1 and has its own ID in h2_id
+                h2_id_for_element = title_id
+                h3_id_for_element = None
+            elif title_level == 3:
+                current_h3_id = title_id
+                # H3 keeps parent H1 and H2, and has its own ID in h3_id
+                h3_id_for_element = title_id
+        
         element = {
             "text": paragraph.text.strip(),
             "type": element_type,
             "title_level": title_level,
+            "title_id": title_id,  # UUID for this title (None for paragraphs)
+            "h1_id": h1_id_for_element,  # H1 ID in hierarchy (can be None)
+            "h2_id": h2_id_for_element,  # H2 ID in hierarchy (can be None)
+            "h3_id": h3_id_for_element,   # H3 ID in hierarchy (can be None)
             "metadata": {
                 "style": paragraph.style.name,
                 "word_count": len(paragraph.text.split())

@@ -4,8 +4,9 @@ Provides base class and naive implementation.
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import re
+import uuid
 
 
 class ChunkingStrategy(ABC):
@@ -60,13 +61,29 @@ class NaiveChunkingStrategy(ChunkingStrategy):
         current_metadata = {
             "source_types": [],
             "title_levels": [],
-            "element_indices": []
+            "element_indices": [],
+            "h1_id": None,  # Track hierarchical IDs
+            "h2_id": None,
+            "h3_id": None
         }
         
         for idx, element in enumerate(elements):
             text = element.get("text", "")
             element_type = element.get("type", "paragraph")
             title_level = element.get("title_level")
+            
+            # Get hierarchical IDs from element
+            h1_id = element.get("h1_id")
+            h2_id = element.get("h2_id")
+            h3_id = element.get("h3_id")
+            
+            # Update current hierarchical IDs (use latest from element)
+            if h1_id is not None:
+                current_metadata["h1_id"] = h1_id
+            if h2_id is not None:
+                current_metadata["h2_id"] = h2_id
+            if h3_id is not None:
+                current_metadata["h3_id"] = h3_id
             
             # Skip empty elements
             if not text.strip():
@@ -84,10 +101,14 @@ class NaiveChunkingStrategy(ChunkingStrategy):
                     chunks.append(chunk)
                     current_chunk_text = []
                     current_chunk_words = 0
+                    # Preserve hierarchical IDs when resetting metadata
                     current_metadata = {
                         "source_types": [],
                         "title_levels": [],
-                        "element_indices": []
+                        "element_indices": [],
+                        "h1_id": current_metadata.get("h1_id"),
+                        "h2_id": current_metadata.get("h2_id"),
+                        "h3_id": current_metadata.get("h3_id")
                     }
                 
                 # Add sentence to current chunk
@@ -108,10 +129,14 @@ class NaiveChunkingStrategy(ChunkingStrategy):
                     chunks.append(chunk)
                     current_chunk_text = []
                     current_chunk_words = 0
+                    # Preserve hierarchical IDs when resetting metadata
                     current_metadata = {
                         "source_types": [],
                         "title_levels": [],
-                        "element_indices": []
+                        "element_indices": [],
+                        "h1_id": current_metadata.get("h1_id"),
+                        "h2_id": current_metadata.get("h2_id"),
+                        "h3_id": current_metadata.get("h3_id")
                     }
         
         # Add remaining chunk if it meets minimum size
@@ -160,6 +185,7 @@ class NaiveChunkingStrategy(ChunkingStrategy):
     def _create_chunk(self, chunk_text: List[str], metadata: Dict[str, Any], element_idx: int) -> Dict[str, Any]:
         """
         Create a chunk dictionary from text parts and metadata.
+        Generates a UUID4 for each chunk and includes hierarchical IDs.
         
         Args:
             chunk_text: List of text parts (sentences)
@@ -167,15 +193,22 @@ class NaiveChunkingStrategy(ChunkingStrategy):
             element_idx: Index of the source element
             
         Returns:
-            Chunk dictionary
+            Chunk dictionary with UUID and hierarchical IDs
         """
         full_text = " ".join(chunk_text)
         word_count = len(full_text.split())
+        
+        # Generate UUID4 for this chunk
+        chunk_id = str(uuid.uuid4())
         
         return {
             "text": full_text,
             "metadata": {
                 **metadata,
+                "chunk_id": chunk_id,  # UUID4 for this chunk
+                "h1_id": metadata.get("h1_id"),  # H1 ID (can be None)
+                "h2_id": metadata.get("h2_id"),  # H2 ID (can be None)
+                "h3_id": metadata.get("h3_id"),  # H3 ID (can be None)
                 "word_count": word_count,
                 "char_count": len(full_text)
             }
