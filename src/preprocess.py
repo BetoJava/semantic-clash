@@ -8,12 +8,18 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from .docx_parser import parse_docx
-from .chunking import NaiveChunkingStrategy
+from .chunking import NaiveChunkingStrategy, LineBreakChunkingStrategy, ChunkingStrategy
 from .embedding import Embedder
 from .vector_db import VectorDB
 
 
-def preprocess(docx_path: str, output_dir: str, model_name: str = "Qwen/Qwen3-Embedding-0.6B") -> str:
+def preprocess(
+    docx_path: str, 
+    output_dir: str, 
+    model_name: str = "Qwen/Qwen3-Embedding-0.6B", 
+    device: str = "cpu",
+    chunking_strategy: str = "naive"
+) -> str:
     """
     Complete preprocessing pipeline: parse docx, chunk, embed, and save.
     
@@ -21,6 +27,8 @@ def preprocess(docx_path: str, output_dir: str, model_name: str = "Qwen/Qwen3-Em
         docx_path: Path to the input DOCX file
         output_dir: Directory to save output files
         model_name: Name of the embedding model to use
+        device: Device to use ('cpu' or 'cuda')
+        chunking_strategy: Chunking strategy to use ('naive' or 'linebreak', default: 'naive')
         
     Returns:
         Path to the saved vector database
@@ -54,15 +62,24 @@ def preprocess(docx_path: str, output_dir: str, model_name: str = "Qwen/Qwen3-Em
     # Step 2: Chunk the elements
     print("\n[2/4] Chunking elements...")
     step_start = time.perf_counter()
-    chunking_strategy = NaiveChunkingStrategy(target_words=50)
-    chunks = chunking_strategy.chunk(elements)
+    
+    # Select chunking strategy
+    strategy: ChunkingStrategy
+    if chunking_strategy == "linebreak":
+        strategy = LineBreakChunkingStrategy()
+        print(f"Using LineBreakChunkingStrategy")
+    else:  # default to "naive"
+        strategy = NaiveChunkingStrategy(target_words=50)
+        print(f"Using NaiveChunkingStrategy (target_words=50)")
+    
+    chunks = strategy.chunk(elements)
     step_time = time.perf_counter() - step_start
     print(f"Created {len(chunks)} chunks (Time: {step_time:.2f}s)")
     
     # Step 3: Embed chunks
     print("\n[3/4] Embedding chunks...")
     step_start = time.perf_counter()
-    embedder = Embedder(model_name=model_name, device="cpu")
+    embedder = Embedder(model_name=model_name, device=device)
     embeddings = embedder.embed_chunks(chunks)
     step_time = time.perf_counter() - step_start
     print(f"Embedding complete (Time: {step_time:.2f}s)")
@@ -105,11 +122,13 @@ def main():
     parser.add_argument("--input", required=True, help="Path to input DOCX file")
     parser.add_argument("--output", required=True, help="Output directory for processed files")
     parser.add_argument("--model", default="Qwen/Qwen3-Embedding-0.6B", help="Embedding model name")
+    parser.add_argument("--chunking", default="naive", choices=["naive", "linebreak"], 
+                       help="Chunking strategy: 'naive' (by word count) or 'linebreak' (by newlines, default: naive)")
     
     args = parser.parse_args()
     
     try:
-        db_path = preprocess(args.input, args.output, args.model)
+        db_path = preprocess(args.input, args.output, args.model, chunking_strategy=args.chunking)
         print(f"\nSuccess! Vector database ready at: {db_path}")
     except Exception as e:
         print(f"\nError during preprocessing: {e}")

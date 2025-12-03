@@ -21,6 +21,14 @@ class Embedder:
             device: Device to use ('cpu' or 'cuda')
         """
         self.model_name = model_name
+        
+        # Check CUDA availability and fall back to CPU if needed
+        if device == "cuda":
+            if not torch.cuda.is_available():
+                print("⚠ Warning: CUDA requested but not available. Falling back to CPU.")
+                print("  (PyTorch was not compiled with CUDA support)")
+                device = "cpu"
+        
         self.device = device
         
         # Ensure CPU is used

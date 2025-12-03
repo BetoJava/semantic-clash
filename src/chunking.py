@@ -214,3 +214,92 @@ class NaiveChunkingStrategy(ChunkingStrategy):
             }
         }
 
+
+class LineBreakChunkingStrategy(ChunkingStrategy):
+    """
+    Line break chunking strategy: creates chunks by splitting on newlines.
+    Each non-empty line becomes a separate chunk.
+    """
+    
+    def chunk(self, elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Chunk elements by splitting on newlines.
+        
+        Args:
+            elements: List of document elements
+            
+        Returns:
+            List of chunks with text and metadata
+        """
+        chunks = []
+        
+        for idx, element in enumerate(elements):
+            text = element.get("text", "")
+            element_type = element.get("type", "paragraph")
+            title_level = element.get("title_level")
+            
+            # Get hierarchical IDs from element
+            h1_id = element.get("h1_id")
+            h2_id = element.get("h2_id")
+            h3_id = element.get("h3_id")
+            
+            # Skip empty elements
+            if not text.strip():
+                continue
+            
+            # Split text by newlines
+            lines = text.split('\n')
+            
+            for line in lines:
+                line = line.strip()
+                # Skip empty lines
+                if not line:
+                    continue
+                
+                # Create metadata for this chunk
+                metadata = {
+                    "source_types": [element_type],
+                    "title_levels": [title_level] if title_level else [],
+                    "element_indices": [idx],
+                    "h1_id": h1_id,
+                    "h2_id": h2_id,
+                    "h3_id": h3_id
+                }
+                
+                # Create chunk
+                chunk = self._create_chunk([line], metadata, idx)
+                chunks.append(chunk)
+        
+        return chunks
+    
+    def _create_chunk(self, chunk_text: List[str], metadata: Dict[str, Any], element_idx: int) -> Dict[str, Any]:
+        """
+        Create a chunk dictionary from text parts and metadata.
+        Generates a UUID4 for each chunk and includes hierarchical IDs.
+        
+        Args:
+            chunk_text: List of text parts (lines)
+            metadata: Metadata dictionary
+            element_idx: Index of the source element
+            
+        Returns:
+            Chunk dictionary with UUID and hierarchical IDs
+        """
+        full_text = " ".join(chunk_text)
+        word_count = len(full_text.split())
+        
+        # Generate UUID4 for this chunk
+        chunk_id = str(uuid.uuid4())
+        
+        return {
+            "text": full_text,
+            "metadata": {
+                **metadata,
+                "chunk_id": chunk_id,  # UUID4 for this chunk
+                "h1_id": metadata.get("h1_id"),  # H1 ID (can be None)
+                "h2_id": metadata.get("h2_id"),  # H2 ID (can be None)
+                "h3_id": metadata.get("h3_id"),  # H3 ID (can be None)
+                "word_count": word_count,
+                "char_count": len(full_text)
+            }
+        }

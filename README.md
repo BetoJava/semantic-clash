@@ -13,15 +13,13 @@ python setup.py
 python setup.py --device cuda
 ```
 
-## Preprocessing
-This will chunk, vectorise and store the data.
+## Preprocess
 ```bash
-python main.py --mode preprocess --input input/document.docx --output data/
+python main.py --mode preprocess --input input/document.docx --output data/ --chunking linebreak --device cuda
 ```
 
 ## Process
-This will compute cos similarity distances and generate a semantic collision report.
 ```bash
-# Génération du rapport
-python main.py --mode process --input data/document_vector_db --output report/report.csv
+python main.py --mode process-inter-h2 --input data/document_vector_db --output data/inter_h2_reports/ --top-k 100 --min-similarity 0.0 --exclude-threshold 0.999 --score-threshold 0.5 --score-exponent 2.0
 ```
+
